@@ -15,8 +15,24 @@
     button:disabled { background-color: #ccc; cursor: not-allowed; }
     #loading { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
     .note { font-size: 13px; color: #666; margin-top: -8px; margin-bottom: 15px; }
+
+    /* ホテル予約風スケジュール選択カードのデザイン */
+    .schedule-container { max-height: 250px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background: white; padding: 5px; margin-bottom: 15px; }
+    .schedule-card { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
+    .schedule-card:last-child { border-bottom: none; }
+    .schedule-card:hover { background-color: #f1f8ff; }
+    .schedule-card.selected { background-color: #e6f4ea; border-left: 4px solid #06C755; }
+    .schedule-card.disabled { background-color: #f5f5f5; cursor: not-allowed; opacity: 0.6; }
     
-    /* 完了画面用のスタイル */
+    .schedule-info .title { font-weight: bold; font-size: 14px; color: #333; }
+    .schedule-info .time { font-size: 12px; color: #666; margin-top: 3px; }
+    
+    .status-badge { font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 13px; text-align: center; min-width: 50px; }
+    .status-maru { color: #008000; background: #e6f4ea; }
+    .status-sankaku { color: #d97706; background: #fef3c7; }
+    .status-batsu { color: #999; background: #eee; }
+
+    /* 完了画面用 */
     #successMessage { display: none; text-align: center; padding: 30px 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     #successMessage h3 { color: #06C755; margin-bottom: 15px; }
     #successMessage p { color: #555; line-height: 1.6; margin-bottom: 25px; }
@@ -26,17 +42,18 @@
 <body>
 
   <h2>夏休みイベント予約</h2>
-  <p class="note">※ご兄弟で参加される場合は、お一人ずつこのフォームからお申し込みください。</p>
+  <p class="note">※ご希望の日時を選択してください。</p>
 
   <div id="loading">空席情報を読み込み中...</div>
 
   <!-- 予約フォーム -->
   <form id="bookingForm" style="display: none;">
     <div class="form-group">
-      <label for="schedule">希望日時・コース <span style="color:red;">*</span></label>
-      <select id="schedule" name="schedule" required>
-        <option value="">選択してください</option>
-      </select>
+      <label>希望日時・コース選択 <span style="color:red;">*</span></label>
+      <!-- ホテル予約風の選択カード一覧エリア -->
+      <div id="scheduleList" class="schedule-container"></div>
+      <!-- 内部で選択された値を保持する隠しinput -->
+      <input type="hidden" id="schedule" name="schedule" required>
     </div>
 
     <div class="form-group">
@@ -68,23 +85,19 @@
       <input type="tel" id="phone" name="phone" placeholder="09012345678" required>
     </div>
 
-    <button type="submit" id="submitBtn">予約を確定する</button>
+    <button type="submit" id="submitBtn" disabled>予約を確定する（日時を選択してください）</button>
   </form>
 
-  <!-- 予約完了時の表示エリア（兄弟連続登録・終了対応） -->
+  <!-- 予約完了時の表示エリア -->
   <div id="successMessage">
     <h3>ご予約完了いたしました！</h3>
     <p>ご登録のLINEに確認メッセージを送信しました。<br>LINEの自動返信をご確認ください。</p>
     
-    <!-- 兄弟連続登録ボタン -->
     <button type="button" onclick="resetFormForNext()">続けて別のお子様の予約をする</button>
-    
-    <!-- ブラウザを閉じる・戻る案内用ボタン -->
     <button type="button" class="btn-secondary" onclick="handleCloseAction()">予約を終了して画面を閉じる</button>
   </div>
 
   <script>
-    // ★設定項目
     const LIFF_ID = '2010871919-M9Cm81wZ';
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzCNLPMxNsjwSrmW_x-xcZxKuSSMV5w-hfZdVxlTzzsHUitKVy8UwTgoDrF8Vsz4QZ9/exec';
 
@@ -106,7 +119,7 @@
       fetchSchedules();
     });
 
-    // 空席データの取得とセレクトボックス構築
+    // 空席データの取得
     function fetchSchedules() {
       fetch(GAS_URL + '?action=getSchedules')
         .then(response => response.json())
@@ -119,26 +132,56 @@
         });
     }
 
+    // ホテル予約風のカードリストを生成
     function renderSchedules(schedules) {
       const loadingEl = document.getElementById('loading');
       const formEl = document.getElementById('bookingForm');
-      const selectEl = document.getElementById('schedule');
+      const listEl = document.getElementById('scheduleList');
 
-      // 既存の選択肢をクリア（再読み込み用）
-      selectEl.innerHTML = '<option value="">選択してください</option>';
+      listEl.innerHTML = '';
 
       if (schedules && schedules.length > 0) {
         schedules.forEach(item => {
-          const option = document.createElement('option');
-          option.value = item.key;
+          const card = document.createElement('div');
+          card.className = 'schedule-card';
 
+          // ステータスの表示判定（〇、△、×）
+          let badgeText = '〇 空きあり';
+          let badgeClass = 'status-maru';
           if (item.status === '満席') {
-            option.textContent = `【満席】${item.schedule}`;
-            option.disabled = true;
-          } else {
-            option.textContent = `【${item.status} ${item.schedule}`;
+            badgeText = '× 満席';
+            badgeClass = 'status-batsu';
+            card.classList.add('disabled');
+          } else if (item.status === '残少' || (item.remains && item.remains <= 2)) {
+            badgeText = '△ 残少';
+            badgeClass = 'status-sankaku';
           }
-          selectEl.appendChild(option);
+
+          card.innerHTML = `
+            <div class="schedule-info">
+              <div class="title">${item.schedule}</div>
+            </div>
+            <div class="status-badge ${badgeClass}">${badgeText}</div>
+          `;
+
+          // 満席でなければクリックで選択可能に
+          if (item.status !== '満席') {
+            card.addEventListener('click', () => {
+              // 既存の選択解除
+              document.querySelectorAll('.schedule-card').forEach(c => c.classList.remove('selected'));
+              // 選択状態にする
+              card.classList.add('selected');
+              // 隠しinputに値をセット
+              document.getElementById('schedule').value = item.key;
+
+              // ボタンを有効化
+              const submitBtn = document.getElementById('submitBtn');
+              submitBtn.disabled = false;
+              submitBtn.textContent = '予約を確定する';
+            });
+          }
+
+          listEl.appendChild(card);
         });
 
         loadingEl.style.display = 'none';
@@ -152,13 +195,19 @@
     document.getElementById('bookingForm').addEventListener('submit', (e) => {
       e.preventDefault();
 
+      const selectedKey = document.getElementById('schedule').value;
+      if (!selectedKey) {
+        alert('希望日時を選択してください。');
+        return;
+      }
+
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
       submitBtn.textContent = '送信中...';
 
       const formData = {
         userId: userId,
-        key: document.getElementById('schedule').value,
+        key: selectedKey,
         parentName: document.getElementById('parentName').value,
         childName: document.getElementById('childName').value,
         grade: document.getElementById('grade').value,
@@ -173,7 +222,6 @@
       .then(response => response.json())
       .then(result => {
         if (result && result.status === 'success') {
-          // フォームを隠して完了画面を表示
           document.getElementById('bookingForm').style.display = 'none';
           document.getElementById('successMessage').style.display = 'block';
           window.scrollTo(0, 0);
@@ -190,26 +238,22 @@
       });
     });
 
-    // 「続けて別のお子様の予約をする」ボタン（兄弟連続登録用）
+    // 続けて別のお子様の予約をする（リセット）
     function resetFormForNext() {
-      // フォームの入力値をリセット（保護者名や電話番号は残しても便利ですが、いったんクリアまたは維持）
       document.getElementById('childName').value = '';
       document.getElementById('grade').value = '';
       document.getElementById('schedule').value = '';
-
-      // ボタンを元に戻す
+      
       const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = false;
-      submitBtn.textContent = '予約を確定する';
+      submitBtn.disabled = true;
+      submitBtn.textContent = '予約を確定する（日時を選択してください）';
 
-      // 完了画面を隠してフォームを再表示（最新の残席数を反映するために空席データも再取得）
       document.getElementById('successMessage').style.display = 'none';
       document.getElementById('loading').style.display = 'block';
       fetchSchedules();
       window.scrollTo(0, 0);
     }
 
-    // 「予約を終了して画面を閉じる」ボタンの挙動
     function handleCloseAction() {
       if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
         liff.closeWindow();
