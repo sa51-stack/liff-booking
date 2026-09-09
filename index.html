@@ -66,25 +66,32 @@
 
   <script>
     // ★設定項目
-    const LIFF_ID = '2010871919-M9Cm81wZ';
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbziGcob08pv2pqjLWvp1lvHh_GfYjcvKguezzlerFtBA7ddY9V01A5FWFm8N-i-Hm2r/exec';
+    const LIFF_ID = '2010871919-M9Cm81wZ'; // ご自身のLIFF IDに書き換え
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbziGcob08pv2pqjLWvp1lvHh_GfYjcvKguezzlerFtBA7ddY9V01A5FWFm8N-i-Hm2r/exec'; // ご自身のGASウェブアプリURLに書き換え
 
     let userId = '';
 
     document.addEventListener('DOMContentLoaded', async () => {
-      // 1. LIFF初期化（トップレベルで動くため確実に成功します）
+      // 1. LIFF初期化とループ防止対策
       if (typeof liff !== 'undefined' && LIFF_ID) {
         try {
           await liff.init({ liffId: LIFF_ID });
-          if (!liff.isLoggedIn()) {
-            liff.login();
-            return;
+          
+          // LINEアプリ内から開かれている場合の処理
+          if (liff.isInClient()) {
+            if (!liff.isLoggedIn()) {
+              liff.login();
+              return;
+            }
           }
-          const profile = await liff.getProfile();
-          userId = profile.userId;
+          
+          // ログイン済み（または外部ブラウザ等）であればプロフィール取得を試みる
+          if (liff.isLoggedIn()) {
+            const profile = await liff.getProfile();
+            userId = profile.userId;
+          }
         } catch (err) {
           console.warn('LIFF初期化エラー:', err);
-          alert('LIFF初期化に失敗しました: ' + (err.message || JSON.stringify(err)));
         }
       }
 
@@ -153,7 +160,7 @@
       .then(result => {
         if (result && result.status === 'success') {
           alert(result.message);
-          // 正常にウィンドウが閉じます
+          // ウィンドウを閉じる（ループを防ぐため確実に分岐）
           if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
             liff.closeWindow();
           } else {
