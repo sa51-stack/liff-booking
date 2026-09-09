@@ -113,13 +113,14 @@
 
   <script>
     const LIFF_ID = '2010871919-M9Cm81wZ';
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzop8T7PEjyhghpLdY_qIYh3dLllrE3hh1gF4gQbaj54vWiIQYnrph8bVekMPre4F4f/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyar8FMeMEdElUMyq4OFRhN9jMiF0GHJv3bnKTKj9FSjb_mNXiEqQfD9x-GCrv70ujk/exec
+';
 
     let userId = '';
     let rawSchedulesData = [];
 
     document.addEventListener('DOMContentLoaded', async () => {
-      if (typeof liff !== 'undefined' && LIFF_ID) {
+      if (typeof liff !== 'undefined' && LIFF_ID && LIFF_ID !== '○○') {
         try {
           await liff.init({ liffId: LIFF_ID });
           if (liff.isLoggedIn()) {
@@ -138,8 +139,8 @@
       fetch(GAS_URL + '?action=getSchedules')
         .then(response => response.json())
         .then(schedules => {
-          rawSchedulesData = schedules;
-          initFormOptions(schedules);
+          rawSchedulesData = schedules || [];
+          initFormOptions(rawSchedulesData);
         })
         .catch(error => {
           console.error('データ取得エラー:', error);
@@ -147,39 +148,15 @@
         });
     }
 
-    // スプレッドシートの生データから日付とコースの選択肢を安全に抽出して分類する関数
-    // 【推測・経験則】: 英語の日付文字列や任意の文字列が含まれるため、indexOfや分割で安全に抽出します
+    // スプレッドシート側で分離された日付（item.date）とコース（item.course）を元に初期化
     function initFormOptions(schedules) {
       if (!schedules || schedules.length === 0) {
         document.getElementById('loading').textContent = '現在予約可能な日程がございません。';
         return;
       }
 
-      const dateSet = new Set();
-      
-      schedules.forEach(item => {
-        const rawText = item.schedule;
-        const parsedDate = new Date(rawText);
-        let dateStr = '';
-
-        if (!isNaN(parsedDate.getTime())) {
-          const month = parsedDate.getMonth() + 1;
-          const day = parsedDate.getDate();
-          const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-          const weekday = weekdays[parsedDate.getDay()];
-          dateStr = `${month}月${day}日(${weekday})`;
-        } else {
-          // パースできない場合は最初のスペース区切り等を利用
-          const parts = rawText.split(/[\s ]+/);
-          dateStr = parts[0] ? parts[0] : 'その他日程';
-        }
-        
-        // アイテムに抽出した日付を付与しておく
-        item.parsedDateStr = dateStr;
-      });
-
-      // 日付のドロップダウンを生成
-      const uniqueDates = [...new Set(schedules.map(i => i.parsedDateStr))];
+      // 日付の選択肢を抽出
+      const uniqueDates = [...new Set(schedules.map(i => i.date))];
       const dateSelect = document.getElementById('selectDate');
       dateSelect.innerHTML = '<option value="">日付を選択してください</option>';
       
@@ -209,20 +186,8 @@
       if (!selectedDate) return;
 
       // 選択された日付に該当するアイテムからコース名を抽出
-      const filteredByDate = rawSchedulesData.filter(i => i.parsedDateStr === selectedDate);
-      const courseSet = new Set();
-
-      filteredByDate.forEach(item => {
-        // 例: "Sat Aug 01 2026 10:00:00 GMT+0900 (日本標準時) - マインクラフトコース" -> "マインクラフトコース"
-        const rawText = item.schedule;
-        let courseName = rawText;
-        const parts = rawText.split('-');
-        if (parts.length > 1) {
-          courseName = parts.slice(1).join('-').trim();
-        }
-        item.parsedCourseName = courseName;
-        courseSet.add(courseName);
-      });
+      const filteredByDate = rawSchedulesData.filter(i => i.date === selectedDate);
+      const courseSet = [...new Set(filteredByDate.map(i => i.course))];
 
       courseSet.forEach(courseName => {
         const opt = document.createElement('option');
@@ -244,7 +209,7 @@
       }
 
       // 該当するデータ（時間候補）を抽出
-      const targetItems = rawSchedulesData.filter(i => i.parsedDateStr === selectedDate && i.parsedCourseName === selectedCourse);
+      const targetItems = rawSchedulesData.filter(i => i.date === selectedDate && i.course === selectedCourse);
       renderScheduleTimes(targetItems);
     }
 
@@ -271,34 +236,26 @@
         const card = document.createElement('div');
         card.className = 'schedule-card';
 
-        // 時間のみの抽出
-        let timeOnly = item.schedule;
-        const parsedDate = new Date(item.schedule);
-        if (!isNaN(parsedDate.getTime())) {
-          const hours = String(parsedDate.getHours()).padStart(2, '0');
-          const minutes = String(parsedDate.getMinutes()).padStart(2, '0');
-          timeOnly = `${hours}:${minutes}〜`;
-        }
+        // item.time には "10:00" などが入る想定
+        let timeDisplay = item.time ? `${item.time} 開始` : '時間未設定';
 
-        let badgeText = '〇 空きあり';
+        let badgeText = item.status || '〇 空きあり';
         let badgeClass = 'status-maru';
-        if (item.status === '満席') {
-          badgeText = '× 満席';
+        if (badgeText.includes('満席')) {
           badgeClass = 'status-batsu';
           card.classList.add('disabled');
-        } else if (item.status === '残少' || (item.remains <= 2)) {
-          badgeText = '△ 残少';
+        } else if (badgeText.includes('残少') || (item.remains <= 2)) {
           badgeClass = 'status-sankaku';
         }
 
         card.innerHTML = `
           <div class="schedule-info">
-            <div class="course-title">${timeOnly} 開始</div>
+            <div class="course-title">${timeDisplay}</div>
           </div>
           <div class="status-badge ${badgeClass}">${badgeText}</div>
         `;
 
-        if (item.status !== '満席') {
+        if (!badgeText.includes('満席')) {
           card.addEventListener('click', () => {
             document.querySelectorAll('.schedule-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
