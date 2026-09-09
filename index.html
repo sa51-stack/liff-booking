@@ -10,19 +10,14 @@
     h2 { text-align: center; color: #333; }
     .form-group { margin-bottom: 15px; }
     label { display: block; margin-bottom: 5px; font-weight: bold; }
-    input, select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+    input, select { width: 100%; padding: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; background: white; }
     button { width: 100%; padding: 12px; background-color: #06C755; color: white; border: none; border-radius: 4px; font-size: 18px; font-weight: bold; cursor: pointer; }
     button:disabled { background-color: #ccc; cursor: not-allowed; }
     #loading { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
     .note { font-size: 13px; color: #666; margin-top: -8px; margin-bottom: 15px; }
 
-    /* 日付タブエリアのデザイン */
-    .date-tabs { display: flex; overflow-x: auto; gap: 8px; margin-bottom: 10px; padding-bottom: 5px; }
-    .date-tab { flex: 0 0 auto; padding: 8px 14px; background: #e0e0e0; border: none; border-radius: 20px; font-size: 14px; font-weight: bold; cursor: pointer; color: #333; }
-    .date-tab.active { background: #06C755; color: white; }
-
     /* スケジュールカード一覧エリア */
-    .schedule-container { max-height: 280px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background: white; padding: 5px; margin-bottom: 15px; }
+    .schedule-container { max-height: 250px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background: white; padding: 5px; margin-bottom: 15px; }
     .schedule-card { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
     .schedule-card:last-child { border-bottom: none; }
     .schedule-card:hover { background-color: #f1f8ff; }
@@ -30,7 +25,6 @@
     .schedule-card.disabled { background-color: #f5f5f5; cursor: not-allowed; opacity: 0.6; }
     
     .schedule-info .course-title { font-weight: bold; font-size: 15px; color: #333; }
-    .schedule-info .time { font-size: 13px; color: #666; margin-top: 3px; }
     
     .status-badge { font-weight: bold; padding: 4px 10px; border-radius: 4px; font-size: 13px; text-align: center; min-width: 60px; }
     .status-maru { color: #008000; background: #e6f4ea; }
@@ -47,21 +41,30 @@
 <body>
 
   <h2>夏休みイベント予約</h2>
-  <p class="note">※ご希望の日付を選んでから、時間・コースを選択してください。</p>
+  <p class="note">※日付とコースを選んで、空いている時間をお選びください。</p>
 
   <div id="loading">空席情報を読み込み中...</div>
 
   <!-- 予約フォーム -->
   <form id="bookingForm" style="display: none;">
     <div class="form-group">
-      <label>1. 日付の選択 <span style="color:red;">*</span></label>
-      <div id="dateTabs" class="date-tabs"></div>
+      <label for="selectDate">1. 日付の選択 <span style="color:red;">*</span></label>
+      <select id="selectDate" required>
+        <option value="">日付を選択してください</option>
+      </select>
     </div>
 
     <div class="form-group">
-      <label>2. 時間・コースの選択 <span style="color:red;">*</span></label>
+      <label for="selectCourseName">2. コースの選択 <span style="color:red;">*</span></label>
+      <select id="selectCourseName" required disabled>
+        <option value="">先の日付を選択してください</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>3. 時間の選択 <span style="color:red;">*</span></label>
       <div id="scheduleList" class="schedule-container">
-        <div style="padding: 20px; text-align: center; color: #888;">上のタブから日付を選択してください</div>
+        <div style="padding: 20px; text-align: center; color: #888;">日付とコースを選択してください</div>
       </div>
       <!-- 選択された識別キーを保持する隠しinput -->
       <input type="hidden" id="schedule" name="schedule" required>
@@ -96,7 +99,7 @@
       <input type="tel" id="phone" name="phone" placeholder="09012345678" required>
     </div>
 
-    <button type="submit" id="submitBtn" disabled>予約を確定する（日時を選択してください）</button>
+    <button type="submit" id="submitBtn" disabled>予約を確定する（時間を選択してください）</button>
   </form>
 
   <!-- 予約完了時の表示エリア -->
@@ -113,7 +116,7 @@
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzop8T7PEjyhghpLdY_qIYh3dLllrE3hh1gF4gQbaj54vWiIQYnrph8bVekMPre4F4f/exec';
 
     let userId = '';
-    let globalSchedules = {};
+    let rawSchedulesData = [];
 
     document.addEventListener('DOMContentLoaded', async () => {
       if (typeof liff !== 'undefined' && LIFF_ID) {
@@ -135,7 +138,8 @@
       fetch(GAS_URL + '?action=getSchedules')
         .then(response => response.json())
         .then(schedules => {
-          organizeSchedules(schedules);
+          rawSchedulesData = schedules;
+          initFormOptions(schedules);
         })
         .catch(error => {
           console.error('データ取得エラー:', error);
@@ -143,106 +147,138 @@
         });
     }
 
-    // 英語の日付文字列やDateオブジェクトを綺麗にパースしてグルーピングする関数
-    function organizeSchedules(schedules) {
-      globalSchedules = {};
-
-      if (schedules && schedules.length > 0) {
-        schedules.forEach(item => {
-          // item.schedule の例: "Sat Aug 01 2026 10:00:00 GMT+0900 (日本標準時) - マインクラフトコース"
-          // または "8月1日(土) 10:00〜 マインクラフトコース"
-          const rawText = item.schedule;
-          
-          let dateStr = 'その他日程';
-          let timeAndCourse = rawText;
-
-          // Googleスプレッドシート由来の英語日付形式（Sat Aug 01 2026 ...）が含まれているかチェック
-          const parsedDate = new Date(rawText);
-          if (!isNaN(parsedDate.getTime())) {
-            // 有効な日付としてパースできた場合
-            const month = parsedDate.getMonth() + 1;
-            const day = parsedDate.getDate();
-            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-            const weekday = weekdays[parsedDate.getDay()];
-            
-            dateStr = `${month}月${day}日(${weekday})`;
-
-            // 時間（例: 10:00:00 -> 10:00）とコース名を抽出
-            const hours = String(parsedDate.getHours()).padStart(2, '0');
-            const minutes = String(parsedDate.getMinutes()).padStart(2, '0');
-            const timeOnly = `${hours}:${minutes}`;
-
-            // ハイフン以降のコース名部分を取得、または全体から調整
-            const parts = rawText.split('-');
-            const coursePart = parts.length > 1 ? parts.slice(1).join('-').trim() : '';
-            timeAndCourse = `${timeOnly}〜 ${coursePart}`;
-          } else {
-            // すでに日本語テキスト等の場合
-            const parts = rawText.split(/[\s ]+/);
-            dateStr = parts[0] ? parts[0] : 'その他日程';
-            timeAndCourse = parts.slice(1).join(' ');
-          }
-
-          if (!globalSchedules[dateStr]) {
-            globalSchedules[dateStr] = [];
-          }
-          globalSchedules[dateStr].push({
-            key: item.key,
-            date: dateStr,
-            timeAndCourse: timeAndCourse,
-            fullText: rawText,
-            remains: item.remains,
-            status: item.status
-          });
-        });
-
-        renderDateTabs();
-        
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('bookingForm').style.display = 'block';
-      } else {
+    // スプレッドシートの生データから日付とコースの選択肢を安全に抽出して分類する関数
+    // 【推測・経験則】: 英語の日付文字列や任意の文字列が含まれるため、indexOfや分割で安全に抽出します
+    function initFormOptions(schedules) {
+      if (!schedules || schedules.length === 0) {
         document.getElementById('loading').textContent = '現在予約可能な日程がございません。';
+        return;
       }
-    }
 
-    function renderDateTabs() {
-      const tabsEl = document.getElementById('dateTabs');
-      tabsEl.innerHTML = '';
+      const dateSet = new Set();
+      
+      schedules.forEach(item => {
+        const rawText = item.schedule;
+        const parsedDate = new Date(rawText);
+        let dateStr = '';
 
-      const dates = Object.keys(globalSchedules);
-      dates.forEach((dateStr, index) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'date-tab';
-        btn.textContent = dateStr;
-
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.date-tab').forEach(t => t.classList.remove('active'));
-          btn.classList.add('active');
-          renderScheduleList(dateStr);
-        });
-
-        tabsEl.appendChild(btn);
-
-        if (index === 0) {
-          btn.click();
+        if (!isNaN(parsedDate.getTime())) {
+          const month = parsedDate.getMonth() + 1;
+          const day = parsedDate.getDate();
+          const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+          const weekday = weekdays[parsedDate.getDay()];
+          dateStr = `${month}月${day}日(${weekday})`;
+        } else {
+          // パースできない場合は最初のスペース区切り等を利用
+          const parts = rawText.split(/[\s ]+/);
+          dateStr = parts[0] ? parts[0] : 'その他日程';
         }
+        
+        // アイテムに抽出した日付を付与しておく
+        item.parsedDateStr = dateStr;
       });
+
+      // 日付のドロップダウンを生成
+      const uniqueDates = [...new Set(schedules.map(i => i.parsedDateStr))];
+      const dateSelect = document.getElementById('selectDate');
+      dateSelect.innerHTML = '<option value="">日付を選択してください</option>';
+      
+      uniqueDates.forEach(dateStr => {
+        const opt = document.createElement('option');
+        opt.value = dateStr;
+        opt.textContent = dateStr;
+        dateSelect.appendChild(opt);
+      });
+
+      // イベントリスナー設定
+      dateSelect.addEventListener('change', onDateChange);
+      document.getElementById('selectCourseName').addEventListener('change', onCourseChange);
+
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('bookingForm').style.display = 'block';
     }
 
-    function renderScheduleList(dateStr) {
+    function onDateChange() {
+      const selectedDate = document.getElementById('selectDate').value;
+      const courseSelect = document.getElementById('selectCourseName');
+      
+      courseSelect.innerHTML = '<option value="">コースを選択してください</option>';
+      courseSelect.disabled = true;
+      resetScheduleList('日付を選択してください');
+
+      if (!selectedDate) return;
+
+      // 選択された日付に該当するアイテムからコース名を抽出
+      const filteredByDate = rawSchedulesData.filter(i => i.parsedDateStr === selectedDate);
+      const courseSet = new Set();
+
+      filteredByDate.forEach(item => {
+        // 例: "Sat Aug 01 2026 10:00:00 GMT+0900 (日本標準時) - マインクラフトコース" -> "マインクラフトコース"
+        const rawText = item.schedule;
+        let courseName = rawText;
+        const parts = rawText.split('-');
+        if (parts.length > 1) {
+          courseName = parts.slice(1).join('-').trim();
+        }
+        item.parsedCourseName = courseName;
+        courseSet.add(courseName);
+      });
+
+      courseSet.forEach(courseName => {
+        const opt = document.createElement('option');
+        opt.value = courseName;
+        opt.textContent = courseName;
+        courseSelect.appendChild(opt);
+      });
+
+      courseSelect.disabled = false;
+    }
+
+    function onCourseChange() {
+      const selectedDate = document.getElementById('selectDate').value;
+      const selectedCourse = document.getElementById('selectCourseName').value;
+
+      if (!selectedDate || !selectedCourse) {
+        resetScheduleList('日付とコースを選択してください');
+        return;
+      }
+
+      // 該当するデータ（時間候補）を抽出
+      const targetItems = rawSchedulesData.filter(i => i.parsedDateStr === selectedDate && i.parsedCourseName === selectedCourse);
+      renderScheduleTimes(targetItems);
+    }
+
+    function resetScheduleList(message) {
+      const listEl = document.getElementById('scheduleList');
+      listEl.innerHTML = `<div style="padding: 20px; text-align: center; color: #888;">${message}</div>`;
+      document.getElementById('schedule').value = '';
+      
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = '予約を確定する（時間を選択してください）';
+    }
+
+    function renderScheduleTimes(items) {
       const listEl = document.getElementById('scheduleList');
       listEl.innerHTML = '';
 
-      const items = globalSchedules[dateStr];
       if (!items || items.length === 0) {
-        listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">この日の予約可能なコースはありません</div>';
+        listEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">該当する時間枠がありません</div>';
         return;
       }
 
       items.forEach(item => {
         const card = document.createElement('div');
         card.className = 'schedule-card';
+
+        // 時間のみの抽出
+        let timeOnly = item.schedule;
+        const parsedDate = new Date(item.schedule);
+        if (!isNaN(parsedDate.getTime())) {
+          const hours = String(parsedDate.getHours()).padStart(2, '0');
+          const minutes = String(parsedDate.getMinutes()).padStart(2, '0');
+          timeOnly = `${hours}:${minutes}〜`;
+        }
 
         let badgeText = '〇 空きあり';
         let badgeClass = 'status-maru';
@@ -257,7 +293,7 @@
 
         card.innerHTML = `
           <div class="schedule-info">
-            <div class="course-title">${item.timeAndCourse}</div>
+            <div class="course-title">${timeOnly} 開始</div>
           </div>
           <div class="status-badge ${badgeClass}">${badgeText}</div>
         `;
@@ -283,7 +319,7 @@
 
       const selectedKey = document.getElementById('schedule').value;
       if (!selectedKey) {
-        alert('希望日時・コースを選択してください。');
+        alert('時間を選択してください。');
         return;
       }
 
@@ -327,15 +363,13 @@
     function resetFormForNext() {
       document.getElementById('childName').value = '';
       document.getElementById('grade').value = '';
-      document.getElementById('schedule').value = '';
-      
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = true;
-      submitBtn.textContent = '予約を確定する（日時を選択してください）';
+      document.getElementById('selectDate').value = '';
+      document.getElementById('selectCourseName').innerHTML = '<option value="">先の日付を選択してください</option>';
+      document.getElementById('selectCourseName').disabled = true;
+      resetScheduleList('日付とコースを選択してください');
 
       document.getElementById('successMessage').style.display = 'none';
-      document.getElementById('loading').style.display = 'block';
-      fetchSchedules();
+      document.getElementById('bookingForm').style.display = 'block';
       window.scrollTo(0, 0);
     }
 
