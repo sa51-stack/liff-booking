@@ -16,7 +16,6 @@
     #loading { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
     .note { font-size: 13px; color: #666; margin-top: -8px; margin-bottom: 15px; }
 
-    /* スケジュールカード一覧エリア */
     .schedule-container { max-height: 250px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background: white; padding: 5px; margin-bottom: 15px; }
     .schedule-card { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
     .schedule-card:last-child { border-bottom: none; }
@@ -31,7 +30,6 @@
     .status-sankaku { color: #d97706; background: #fef3c7; }
     .status-batsu { color: #999; background: #eee; }
 
-    /* 完了画面用 */
     #successMessage { display: none; text-align: center; padding: 30px 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     #successMessage h3 { color: #06C755; margin-bottom: 15px; }
     #successMessage p { color: #555; line-height: 1.6; margin-bottom: 25px; }
@@ -45,7 +43,6 @@
 
   <div id="loading">空席情報を読み込み中...</div>
 
-  <!-- 予約フォーム -->
   <form id="bookingForm" style="display: none;">
     <div class="form-group">
       <label for="selectDate">1. 日付の選択 <span style="color:red;">*</span></label>
@@ -66,7 +63,6 @@
       <div id="scheduleList" class="schedule-container">
         <div style="padding: 20px; text-align: center; color: #888;">日付とコースを選択してください</div>
       </div>
-      <!-- 選択された識別キーを保持する隠しinput -->
       <input type="hidden" id="schedule" name="schedule" required>
     </div>
 
@@ -102,7 +98,6 @@
     <button type="submit" id="submitBtn" disabled>予約を確定する（時間を選択してください）</button>
   </form>
 
-  <!-- 予約完了時の表示エリア -->
   <div id="successMessage">
     <h3>ご予約完了いたしました！</h3>
     <p>ご登録のLINEに確認メッセージを送信しました。<br>LINEの自動返信をご確認ください。</p>
@@ -147,14 +142,12 @@
         });
     }
 
-    // スプレッドシート側で分離された日付（item.date）とコース（item.course）を元に初期化
     function initFormOptions(schedules) {
       if (!schedules || schedules.length === 0) {
         document.getElementById('loading').textContent = '現在予約可能な日程がございません。';
         return;
       }
 
-      // 日付の選択肢を抽出
       const uniqueDates = [...new Set(schedules.map(i => i.date))];
       const dateSelect = document.getElementById('selectDate');
       dateSelect.innerHTML = '<option value="">日付を選択してください</option>';
@@ -166,7 +159,6 @@
         dateSelect.appendChild(opt);
       });
 
-      // イベントリスナー設定
       dateSelect.addEventListener('change', onDateChange);
       document.getElementById('selectCourseName').addEventListener('change', onCourseChange);
 
@@ -184,7 +176,6 @@
 
       if (!selectedDate) return;
 
-      // 選択された日付に該当するアイテムからコース名を抽出
       const filteredByDate = rawSchedulesData.filter(i => i.date === selectedDate);
       const courseSet = [...new Set(filteredByDate.map(i => i.course))];
 
@@ -207,7 +198,6 @@
         return;
       }
 
-      // 該当するデータ（時間候補）を抽出
       const targetItems = rawSchedulesData.filter(i => i.date === selectedDate && i.course === selectedCourse);
       renderScheduleTimes(targetItems);
     }
@@ -235,7 +225,6 @@
         const card = document.createElement('div');
         card.className = 'schedule-card';
 
-        // item.time には "10:00" などが入る想定
         let timeDisplay = item.time ? `${item.time} 開始` : '時間未設定';
 
         let badgeText = item.status || '〇 空きあり';
