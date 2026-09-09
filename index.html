@@ -15,6 +15,12 @@
     button:disabled { background-color: #ccc; cursor: not-allowed; }
     #loading { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
     .note { font-size: 13px; color: #666; margin-top: -8px; margin-bottom: 15px; }
+    
+    /* 完了画面用のスタイル */
+    #successMessage { display: none; text-align: center; padding: 30px 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    #successMessage h3 { color: #06C755; margin-bottom: 15px; }
+    #successMessage p { color: #555; line-height: 1.6; margin-bottom: 25px; }
+    .btn-secondary { background-color: #555; margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -24,6 +30,7 @@
 
   <div id="loading">空席情報を読み込み中...</div>
 
+  <!-- 予約フォーム -->
   <form id="bookingForm" style="display: none;">
     <div class="form-group">
       <label for="schedule">希望日時・コース <span style="color:red;">*</span></label>
@@ -64,28 +71,29 @@
     <button type="submit" id="submitBtn">予約を確定する</button>
   </form>
 
+  <!-- 予約完了時の表示エリア（兄弟連続登録・終了対応） -->
+  <div id="successMessage">
+    <h3>ご予約完了いたしました！</h3>
+    <p>ご登録のLINEに確認メッセージを送信しました。<br>LINEの自動返信をご確認ください。</p>
+    
+    <!-- 兄弟連続登録ボタン -->
+    <button type="button" onclick="resetFormForNext()">続けて別のお子様の予約をする</button>
+    
+    <!-- ブラウザを閉じる・戻る案内用ボタン -->
+    <button type="button" class="btn-secondary" onclick="handleCloseAction()">予約を終了して画面を閉じる</button>
+  </div>
+
   <script>
     // ★設定項目
-    const LIFF_ID = '2010871919-M9Cm81wZ'; // ご自身のLIFF IDに書き換え
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzCNLPMxNsjwSrmW_x-xcZxKuSSMV5w-hfZdVxlTzzsHUitKVy8UwTgoDrF8Vsz4QZ9/exec'; // ご自身のGASウェブアプリURLに書き換え
+    const LIFF_ID = '2010871919-M9Cm81wZ';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzCNLPMxNsjwSrmW_x-xcZxKuSSMV5w-hfZdVxlTzzsHUitKVy8UwTgoDrF8Vsz4QZ9/exec';
 
     let userId = '';
 
     document.addEventListener('DOMContentLoaded', async () => {
-      // 1. LIFF初期化とループ防止対策
       if (typeof liff !== 'undefined' && LIFF_ID) {
         try {
           await liff.init({ liffId: LIFF_ID });
-          
-          // LINEアプリ内から開かれている場合の処理
-          if (liff.isInClient()) {
-            if (!liff.isLoggedIn()) {
-              liff.login();
-              return;
-            }
-          }
-          
-          // ログイン済み（または外部ブラウザ等）であればプロフィール取得を試みる
           if (liff.isLoggedIn()) {
             const profile = await liff.getProfile();
             userId = profile.userId;
@@ -95,7 +103,11 @@
         }
       }
 
-      // 2. GASのAPIから空席データを取得
+      fetchSchedules();
+    });
+
+    // 空席データの取得とセレクトボックス構築
+    function fetchSchedules() {
       fetch(GAS_URL + '?action=getSchedules')
         .then(response => response.json())
         .then(schedules => {
@@ -105,13 +117,15 @@
           console.error('データ取得エラー:', error);
           document.getElementById('loading').textContent = 'データの読み込みに失敗しました。';
         });
-    });
+    }
 
-    // セレクトボックスに空席情報をセット
     function renderSchedules(schedules) {
       const loadingEl = document.getElementById('loading');
       const formEl = document.getElementById('bookingForm');
       const selectEl = document.getElementById('schedule');
+
+      // 既存の選択肢をクリア（再読み込み用）
+      selectEl.innerHTML = '<option value="">選択してください</option>';
 
       if (schedules && schedules.length > 0) {
         schedules.forEach(item => {
@@ -122,7 +136,7 @@
             option.textContent = `【満席】${item.schedule}`;
             option.disabled = true;
           } else {
-            option.textContent = `【${item.status}】${item.schedule}`;
+            option.textContent = `【${item.status} ${item.schedule}`;
           }
           selectEl.appendChild(option);
         });
@@ -134,7 +148,7 @@
       }
     }
 
-    // フォーム送信処理（GAS APIへPOST送信）
+    // フォーム送信処理
     document.getElementById('bookingForm').addEventListener('submit', (e) => {
       e.preventDefault();
 
@@ -159,13 +173,10 @@
       .then(response => response.json())
       .then(result => {
         if (result && result.status === 'success') {
-          alert(result.message);
-          // ウィンドウを閉じる（ループを防ぐため確実に分岐）
-          if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
-            liff.closeWindow();
-          } else {
-            location.reload();
-          }
+          // フォームを隠して完了画面を表示
+          document.getElementById('bookingForm').style.display = 'none';
+          document.getElementById('successMessage').style.display = 'block';
+          window.scrollTo(0, 0);
         } else {
           alert('エラー: ' + (result ? result.message : '送信に失敗しました'));
           submitBtn.disabled = false;
@@ -178,6 +189,34 @@
         submitBtn.textContent = '予約を確定する';
       });
     });
+
+    // 「続けて別のお子様の予約をする」ボタン（兄弟連続登録用）
+    function resetFormForNext() {
+      // フォームの入力値をリセット（保護者名や電話番号は残しても便利ですが、いったんクリアまたは維持）
+      document.getElementById('childName').value = '';
+      document.getElementById('grade').value = '';
+      document.getElementById('schedule').value = '';
+
+      // ボタンを元に戻す
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = false;
+      submitBtn.textContent = '予約を確定する';
+
+      // 完了画面を隠してフォームを再表示（最新の残席数を反映するために空席データも再取得）
+      document.getElementById('successMessage').style.display = 'none';
+      document.getElementById('loading').style.display = 'block';
+      fetchSchedules();
+      window.scrollTo(0, 0);
+    }
+
+    // 「予約を終了して画面を閉じる」ボタンの挙動
+    function handleCloseAction() {
+      if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
+        liff.closeWindow();
+      } else {
+        alert('予約が完了しました。このブラウザタブを閉じてLINEにお戻りください。');
+      }
+    }
   </script>
 </body>
 </html>
