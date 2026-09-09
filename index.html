@@ -113,7 +113,7 @@
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzop8T7PEjyhghpLdY_qIYh3dLllrE3hh1gF4gQbaj54vWiIQYnrph8bVekMPre4F4f/exec';
 
     let userId = '';
-    let globalSchedules = {}; // 日付ごとにグループ化したデータを保持
+    let globalSchedules = {};
 
     document.addEventListener('DOMContentLoaded', async () => {
       if (typeof liff !== 'undefined' && LIFF_ID) {
@@ -131,7 +131,6 @@
       fetchSchedules();
     });
 
-    // 空席データの取得
     function fetchSchedules() {
       fetch(GAS_URL + '?action=getSchedules')
         .then(response => response.json())
@@ -144,18 +143,45 @@
         });
     }
 
-    // データを「日付ごと」にグルーピングする関数
-    // ※ 開催日時文字列（例: "7月20日(月) 10:00〜"）の最初の部分を日付として抽出します
+    // 英語の日付文字列やDateオブジェクトを綺麗にパースしてグルーピングする関数
     function organizeSchedules(schedules) {
       globalSchedules = {};
 
       if (schedules && schedules.length > 0) {
         schedules.forEach(item => {
-          // 例: "7月20日(月) 10:00〜11:30 マインクラフト初級" から日付部分を抽出
-          // スペースや全角スペースで分割して先頭部分を日付とみなす
-          const parts = item.schedule.split(/[\s ]+/);
-          const dateStr = parts[0] ? parts[0] : 'その他日程';
-          const timeAndCourse = parts.slice(1).join(' ');
+          // item.schedule の例: "Sat Aug 01 2026 10:00:00 GMT+0900 (日本標準時) - マインクラフトコース"
+          // または "8月1日(土) 10:00〜 マインクラフトコース"
+          const rawText = item.schedule;
+          
+          let dateStr = 'その他日程';
+          let timeAndCourse = rawText;
+
+          // Googleスプレッドシート由来の英語日付形式（Sat Aug 01 2026 ...）が含まれているかチェック
+          const parsedDate = new Date(rawText);
+          if (!isNaN(parsedDate.getTime())) {
+            // 有効な日付としてパースできた場合
+            const month = parsedDate.getMonth() + 1;
+            const day = parsedDate.getDate();
+            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+            const weekday = weekdays[parsedDate.getDay()];
+            
+            dateStr = `${month}月${day}日(${weekday})`;
+
+            // 時間（例: 10:00:00 -> 10:00）とコース名を抽出
+            const hours = String(parsedDate.getHours()).padStart(2, '0');
+            const minutes = String(parsedDate.getMinutes()).padStart(2, '0');
+            const timeOnly = `${hours}:${minutes}`;
+
+            // ハイフン以降のコース名部分を取得、または全体から調整
+            const parts = rawText.split('-');
+            const coursePart = parts.length > 1 ? parts.slice(1).join('-').trim() : '';
+            timeAndCourse = `${timeOnly}〜 ${coursePart}`;
+          } else {
+            // すでに日本語テキスト等の場合
+            const parts = rawText.split(/[\s ]+/);
+            dateStr = parts[0] ? parts[0] : 'その他日程';
+            timeAndCourse = parts.slice(1).join(' ');
+          }
 
           if (!globalSchedules[dateStr]) {
             globalSchedules[dateStr] = [];
@@ -164,7 +190,7 @@
             key: item.key,
             date: dateStr,
             timeAndCourse: timeAndCourse,
-            fullText: item.schedule,
+            fullText: rawText,
             remains: item.remains,
             status: item.status
           });
@@ -179,7 +205,6 @@
       }
     }
 
-    // 日付タブを生成する
     function renderDateTabs() {
       const tabsEl = document.getElementById('dateTabs');
       tabsEl.innerHTML = '';
@@ -192,24 +217,19 @@
         btn.textContent = dateStr;
 
         btn.addEventListener('click', () => {
-          // アクティブ状態の切り替え
           document.querySelectorAll('.date-tab').forEach(t => t.classList.remove('active'));
           btn.classList.add('active');
-
-          // 該当する日付の時間・コース一覧を表示
           renderScheduleList(dateStr);
         });
 
         tabsEl.appendChild(btn);
 
-        // 最初の日付をデフォルトで選択状態にする
         if (index === 0) {
           btn.click();
         }
       });
     }
 
-    // 選択された日付のコース・時間一覧を描画する
     function renderScheduleList(dateStr) {
       const listEl = document.getElementById('scheduleList');
       listEl.innerHTML = '';
@@ -258,7 +278,6 @@
       });
     }
 
-    // フォーム送信処理
     document.getElementById('bookingForm').addEventListener('submit', (e) => {
       e.preventDefault();
 
@@ -305,7 +324,6 @@
       });
     });
 
-    // 続けて別のお子様の予約をする（リセット）
     function resetFormForNext() {
       document.getElementById('childName').value = '';
       document.getElementById('grade').value = '';
