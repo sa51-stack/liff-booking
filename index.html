@@ -107,7 +107,7 @@
 
   <script>
     const LIFF_ID = '2010871919-M9Cm81wZ'; // ←ご自身のIDに書き換えてください
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzX1eFzhBjYAmT6IJkmN946MKs7OHb14DfBHI9R_AitsuJ6GKehVwnc1TMGdy2w1a5B/exec';   // ←ご自身のURLに書き換えてください
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzX1eFzhBjYAmT6IJkmN946MKs7OHb14DfBHI9R_AitsuJ6GKehVwnc1TMGdy2w1a5B/exec';  // ←ご自身のURLに書き換えてください
 
     let userId = '';
     let rawSchedulesData = [];
@@ -121,12 +121,10 @@
             return;
           }
           
-          // 【改善】IDトークンから確実にユーザーID（sub）を取得する
           const idToken = liff.getDecodedIDToken();
           if (idToken && idToken.sub) {
             userId = idToken.sub;
           } else {
-            // フォールバックとして従来のprofile取得も試す
             const profile = await liff.getProfile();
             userId = profile.userId;
           }
@@ -193,13 +191,20 @@
         dateAggregates[item.date] = (dateAggregates[item.date] || 0) + item.remains;
       });
 
+      // 【修正】日付の選択肢も「〇月〇日(〇) 〇 空き5」のような見え方に統一
       Object.keys(dateAggregates).forEach(dateStr => {
         const totalRemains = dateAggregates[dateStr];
         const opt = document.createElement('option');
         opt.value = dateStr;
-        opt.textContent = totalRemains <= 0
-          ? `${dateStr}（満席）`
-          : `${dateStr}（空き${totalRemains}）`;
+
+        if (totalRemains <= 0) {
+          opt.textContent = `${dateStr} × 満席`;
+        } else if (totalRemains <= 2) {
+          opt.textContent = `${dateStr} △ 残り${totalRemains}`;
+        } else {
+          opt.textContent = `${dateStr} 〇 空き${totalRemains}`;
+        }
+
         dateSelect.appendChild(opt);
       });
 
