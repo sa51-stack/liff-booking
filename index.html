@@ -16,22 +16,20 @@
     #loading { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
     .note { font-size: 13px; color: #666; margin-top: -8px; margin-bottom: 15px; }
 
-    /* スケジュールカード一覧エリア */
     .schedule-container { max-height: 250px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background: white; padding: 5px; margin-bottom: 15px; }
     .schedule-card { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
     .schedule-card:last-child { border-bottom: none; }
     .schedule-card:hover { background-color: #f1f8ff; }
     .schedule-card.selected { background-color: #e6f4ea; border-left: 4px solid #06C755; }
     .schedule-card.disabled { background-color: #f5f5f5; cursor: not-allowed; opacity: 0.6; }
-    
+
     .schedule-info .course-title { font-weight: bold; font-size: 15px; color: #333; }
-    
-    .status-badge { font-weight: bold; padding: 4px 10px; border-radius: 4px; font-size: 13px; text-align: center; min-width: 60px; }
+
+    .status-badge { font-weight: bold; padding: 4px 10px; border-radius: 4px; font-size: 13px; text-align: center; min-width: 70px; }
     .status-maru { color: #008000; background: #e6f4ea; }
     .status-sankaku { color: #d97706; background: #fef3c7; }
     .status-batsu { color: #999; background: #eee; }
 
-    /* 完了画面用 */
     #successMessage { display: none; text-align: center; padding: 30px 20px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     #successMessage h3 { color: #06C755; margin-bottom: 15px; }
     #successMessage p { color: #555; line-height: 1.6; margin-bottom: 25px; }
@@ -41,13 +39,11 @@
 <body>
 
   <h2>夏休みイベント予約</h2>
-  <p class="note">※コースを選んでから、日付と時間をお選びください。</p>
+  <p class="note">※コースを選んでから、日付と時間をお選びください。ご兄弟で参加される場合は、お一人ずつこのフォームからお申し込みください。</p>
 
   <div id="loading">空席情報を読み込み中...</div>
 
-  <!-- 予約フォーム -->
   <form id="bookingForm" style="display: none;">
-    <!-- 順序変更: 1. コースの選択 -->
     <div class="form-group">
       <label for="selectCourseName">1. コースの選択 <span style="color:red;">*</span></label>
       <select id="selectCourseName" required>
@@ -55,11 +51,10 @@
       </select>
     </div>
 
-    <!-- 順序変更: 2. 日付の選択 -->
     <div class="form-group">
       <label for="selectDate">2. 日付の選択 <span style="color:red;">*</span></label>
       <select id="selectDate" required disabled>
-        <option value="">先のコースを選択してください</option>
+        <option value="">先にコースを選択してください</option>
       </select>
     </div>
 
@@ -68,7 +63,6 @@
       <div id="scheduleList" class="schedule-container">
         <div style="padding: 20px; text-align: center; color: #888;">コースと日付を選択してください</div>
       </div>
-      <!-- 選択された識別キーを保持する隠しinput -->
       <input type="hidden" id="schedule" name="schedule" required>
     </div>
 
@@ -104,18 +98,16 @@
     <button type="submit" id="submitBtn" disabled>予約を確定する（時間を選択してください）</button>
   </form>
 
-  <!-- 予約完了時の表示エリア -->
   <div id="successMessage">
     <h3>ご予約完了いたしました！</h3>
     <p>ご登録のLINEに確認メッセージを送信しました。<br>LINEの自動返信をご確認ください。</p>
-    
     <button type="button" onclick="resetFormForNext()">続けて別のお子様の予約をする</button>
     <button type="button" class="btn-secondary" onclick="handleCloseAction()">予約を終了して画面を閉じる</button>
   </div>
 
   <script>
     const LIFF_ID = '2010871919-M9Cm81wZ';
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyjHXxd6Wyfc842XX2pVO9mEUdtXNKAthij9a4fhk0BW1g8JwEXpdaveHLmWuAc7icA/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzCaYnElNxQ5HQGEBS3CrddYsp9u35Vb6AKaDuGeJX_-Kos7DjOsWRe0OCEJpspGu2e/exec';
 
     let userId = '';
     let rawSchedulesData = [];
@@ -132,7 +124,6 @@
           console.warn('LIFF初期化エラー:', err);
         }
       }
-
       fetchSchedules();
     });
 
@@ -149,41 +140,16 @@
         });
     }
 
-    // 【修正】「コース選択先出し」の初期化処理
     function initFormOptions(schedules) {
       if (!schedules || schedules.length === 0) {
         document.getElementById('loading').textContent = '現在予約可能な日程がございません。';
         return;
       }
 
-      schedules.forEach(item => {
-        const rawText = item.schedule;
-        const parts = rawText.split(' ');
-        let dateStr = parts[0] ? parts[0].trim() : 'その他日程';
-
-        const parsedDate = new Date(dateStr);
-        if (!isNaN(parsedDate.getTime()) && !dateStr.includes('月')) {
-          const month = parsedDate.getMonth() + 1;
-          const day = parsedDate.getDate();
-          const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
-          const weekday = weekdays[parsedDate.getDay()];
-          dateStr = `${month}月${day}日(${weekday})`;
-        }
-        item.parsedDateStr = dateStr;
-
-        let courseName = rawText;
-        const hyphenParts = rawText.split('-');
-        if (hyphenParts.length > 1) {
-          courseName = hyphenParts.slice(1).join('-').trim();
-        }
-        item.parsedCourseName = courseName;
-      });
-
-      // ユニークなコース名リストを生成して「1. コースの選択」にセット
-      const uniqueCourses = [...new Set(schedules.map(i => i.parsedCourseName))];
+      const uniqueCourses = [...new Set(schedules.map(i => i.course))];
       const courseSelect = document.getElementById('selectCourseName');
       courseSelect.innerHTML = '<option value="">コースを選択してください</option>';
-      
+
       uniqueCourses.forEach(courseName => {
         const opt = document.createElement('option');
         opt.value = courseName;
@@ -198,35 +164,36 @@
       document.getElementById('bookingForm').style.display = 'block';
     }
 
-    // コースが選ばれたときの処理（日付を絞り込む）
     function onCourseChange() {
       const selectedCourse = document.getElementById('selectCourseName').value;
       const dateSelect = document.getElementById('selectDate');
-      
+
       dateSelect.innerHTML = '<option value="">日付を選択してください</option>';
       dateSelect.disabled = true;
       resetScheduleList('コースと日付を選択してください');
 
       if (!selectedCourse) return;
 
-      const filteredByCourse = rawSchedulesData.filter(i => i.parsedCourseName === selectedCourse);
-      const dateSet = new Set();
+      const filteredByCourse = rawSchedulesData.filter(i => i.course === selectedCourse);
 
+      const dateAggregates = {};
       filteredByCourse.forEach(item => {
-        dateSet.add(item.parsedDateStr);
+        dateAggregates[item.date] = (dateAggregates[item.date] || 0) + item.remains;
       });
 
-      dateSet.forEach(dateStr => {
+      Object.keys(dateAggregates).forEach(dateStr => {
+        const totalRemains = dateAggregates[dateStr];
         const opt = document.createElement('option');
         opt.value = dateStr;
-        opt.textContent = dateStr;
+        opt.textContent = totalRemains <= 0
+          ? `${dateStr}（満席）`
+          : `${dateStr}（空き${totalRemains}）`;
         dateSelect.appendChild(opt);
       });
 
       dateSelect.disabled = false;
     }
 
-    // 日付が選ばれたときの処理（時間を絞り込んで表示する）
     function onDateChange() {
       const selectedCourse = document.getElementById('selectCourseName').value;
       const selectedDate = document.getElementById('selectDate').value;
@@ -236,7 +203,7 @@
         return;
       }
 
-      const targetItems = rawSchedulesData.filter(i => i.parsedCourseName === selectedCourse && i.parsedDateStr === selectedDate);
+      const targetItems = rawSchedulesData.filter(i => i.course === selectedCourse && i.date === selectedDate);
       renderScheduleTimes(targetItems);
     }
 
@@ -244,7 +211,7 @@
       const listEl = document.getElementById('scheduleList');
       listEl.innerHTML = `<div style="padding: 20px; text-align: center; color: #888;">${message}</div>`;
       document.getElementById('schedule').value = '';
-      
+
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
       submitBtn.textContent = '予約を確定する（時間を選択してください）';
@@ -263,31 +230,22 @@
         const card = document.createElement('div');
         card.className = 'schedule-card';
 
-        let timeDisplay = item.schedule;
-        const parts = item.schedule.split(' ');
-        if (parts.length >= 2) {
-          timeDisplay = parts[1];
-        }
-
-        let badgeText = '〇 空きあり';
         let badgeClass = 'status-maru';
-        if (item.status === '満席') {
-          badgeText = '× 満席';
+        if (item.remains <= 0) {
           badgeClass = 'status-batsu';
           card.classList.add('disabled');
-        } else if (item.status === '残少' || (item.remains <= 2)) {
-          badgeText = '△ 残少';
+        } else if (item.remains <= 2) {
           badgeClass = 'status-sankaku';
         }
 
         card.innerHTML = `
           <div class="schedule-info">
-            <div class="course-title">${timeDisplay} 開始</div>
+            <div class="course-title">${item.time} 開始</div>
           </div>
-          <div class="status-badge ${badgeClass}">${badgeText}</div>
+          <div class="status-badge ${badgeClass}">${item.status}</div>
         `;
 
-        if (item.status !== '満席') {
+        if (item.remains > 0) {
           card.addEventListener('click', () => {
             document.querySelectorAll('.schedule-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
@@ -353,12 +311,15 @@
       document.getElementById('childName').value = '';
       document.getElementById('grade').value = '';
       document.getElementById('selectCourseName').value = '';
-      document.getElementById('selectDate').innerHTML = '<option value="">先のコースを選択してください</option>';
+      document.getElementById('selectDate').innerHTML = '<option value="">先にコースを選択してください</option>';
       document.getElementById('selectDate').disabled = true;
       resetScheduleList('コースと日付を選択してください');
 
       document.getElementById('successMessage').style.display = 'none';
-      document.getElementById('bookingForm').style.display = 'block';
+      document.getElementById('loading').style.display = 'block';
+      document.getElementById('bookingForm').style.display = 'none';
+      fetchSchedules();
+
       window.scrollTo(0, 0);
     }
 
