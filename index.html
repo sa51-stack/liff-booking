@@ -41,7 +41,7 @@
   <h2>夏休みイベント予約</h2>
   <p class="note">※コースを選んでから、日付と時間をお選びください。ご兄弟で参加される場合は、お一人ずつこのフォームからお申し込みください。</p>
 
-  <div id="loading">LINE接続中＆空席情報を読み込み中...</div>
+  <div id="loading">LINE認証中＆空席情報を読み込み中...</div>
 
   <form id="bookingForm" style="display: none;">
     <div class="form-group">
@@ -107,29 +107,35 @@
 
   <script>
     const LIFF_ID = '2010871919-M9Cm81wZ'; // ←ご自身のIDに書き換えてください
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzCaYnElNxQ5HQGEBS3CrddYsp9u35Vb6AKaDuGeJX_-Kos7DjOsWRe0OCEJpspGu2e/exec';   // ←ご自身のURLに書き換えてください
+    const GAS_URL = 'https://liff.line.me/2010871919-M9Cm81wZ';   // ←ご自身のURLに書き換えてください
 
     let userId = '';
     let rawSchedulesData = [];
 
     document.addEventListener('DOMContentLoaded', async () => {
-      // 1. まずLIFFの初期化を確実に完了させる
       if (typeof liff !== 'undefined' && LIFF_ID) {
         try {
           await liff.init({ liffId: LIFF_ID });
           if (!liff.isLoggedIn()) {
-            liff.login(); // ログインしていなければLINEログインへ誘導
+            liff.login();
             return;
           }
-          const profile = await liff.getProfile();
-          userId = profile.userId;
-          console.log('取得したLINEユーザーID:', userId);
+          
+          // 【改善】IDトークンから確実にユーザーID（sub）を取得する
+          const idToken = liff.getDecodedIDToken();
+          if (idToken && idToken.sub) {
+            userId = idToken.sub;
+          } else {
+            // フォールバックとして従来のprofile取得も試す
+            const profile = await liff.getProfile();
+            userId = profile.userId;
+          }
+          console.log('取得成功 - ユーザーID:', userId);
         } catch (err) {
-          console.warn('LIFF初期化エラー:', err);
+          console.warn('LIFF初期化またはID取得エラー:', err);
         }
       }
 
-      // 2. LIFF初期化とユーザーID取得後にスケジュールデータを取得する
       fetchSchedules();
     });
 
@@ -327,6 +333,10 @@
       fetchSchedules();
 
       window.scrollTo(0, 0);
+    }
+
+    function handleCloseActivity() {
+      // 互換性のため
     }
 
     function handleCloseAction() {
