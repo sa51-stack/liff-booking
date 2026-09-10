@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>夏休みイベント予約フォーム</title>
+  <title>夏休み無料体験会予約フォーム</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: 0 auto; background-color: #f9f9f9; }
@@ -53,10 +53,10 @@
 </head>
 <body>
 
-  <h2>夏休みイベント予約</h2>
+  <h2>夏休み無料体験会予約</h2>
   <p class="note">※コースを選んでから、日付と時間をお選びください。ご兄弟で参加される場合は、お一人ずつこのフォームからお申し込みください。</p>
 
-  <div id="loading">LINE認証中＆空席情報を読み込み中...</div>
+  <div id="loading">空席情報を読み込み中...</div>
 
   <form id="bookingForm" style="display: none;">
     <div class="form-group">
@@ -91,6 +91,7 @@
       <label for="grade">学年 <span style="color:red;">*</span></label>
       <select id="grade" name="grade" required>
         <option value="">選択してください</option>
+        <option value="年長">年長</option>
         <option value="小学1年生">小学1年生</option>
         <option value="小学2年生">小学2年生</option>
         <option value="小学3年生">小学3年生</option>
@@ -118,7 +119,7 @@
 
   <script>
     const LIFF_ID = '2010871919-M9Cm81wZ'; // ←ご自身のIDに書き換えてください
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbylZi961n-Fr9LhDuQHZXsbJfNNveYeNoRdHOgjlRiQ7DjmVo-GD7SU9qpNnu1i8JR0/exec';  // ←ご自身のURLに書き換えてください
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzEc5qCk7gjs0J4EN1aUPSnKfKDbSG4iN6LspgSZ1rM29LIhYEpuELiEefPkKusNtIu/exec';  // ←ご自身のURLに書き換えてください
 
     let userId = '';
     let rawSchedulesData = [];
