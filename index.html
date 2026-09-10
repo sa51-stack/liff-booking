@@ -16,7 +16,8 @@
     #loading { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
     .note { font-size: 13px; color: #666; margin-top: -8px; margin-bottom: 15px; }
 
-    .schedule-container { max-height: 250px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background: white; padding: 5px; margin-bottom: 15px; }
+    /* 共通のスクロールコンテナ（日付・時間どちらにも適用） */
+    .schedule-container { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; background: white; padding: 5px; margin-bottom: 15px; }
     .schedule-card { display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
     .schedule-card:last-child { border-bottom: none; }
     .schedule-card:hover { background-color: #f1f8ff; }
@@ -51,17 +52,20 @@
       </select>
     </div>
 
+    <!-- 日付の選択（カード形式 ＋ スクロール対応） -->
     <div class="form-group">
-      <label for="selectDate">2. 日付の選択 <span style="color:red;">*</span></label>
-      <select id="selectDate" required disabled>
-        <option value="">先にコースを選択してください</option>
-      </select>
+      <label>2. 日付の選択 <span style="color:red;">*</span></label>
+      <div id="dateList" class="schedule-container">
+        <div style="padding: 20px; text-align: center; color: #888;">先にコースを選択してください</div>
+      </div>
+      <input type="hidden" id="selectDate" name="selectDate" required>
     </div>
 
+    <!-- 時間の選択（カード形式 ＋ スクロール対応） -->
     <div class="form-group">
       <label>3. 時間の選択 <span style="color:red;">*</span></label>
       <div id="scheduleList" class="schedule-container">
-        <div style="padding: 20px; text-align: center; color: #888;">コースと日付を選択してください</div>
+        <div style="padding: 20px; text-align: center; color: #888;">日付を選択してください</div>
       </div>
       <input type="hidden" id="schedule" name="schedule" required>
     </div>
@@ -95,7 +99,7 @@
       <input type="tel" id="phone" name="phone" placeholder="09012345678" required>
     </div>
 
-    <button type="submit" id="submitBtn" disabled>予約を確定する（時間を選択してください）</button>
+    <button type="submit" id="submitBtn" disabled>予約を確定する（日時を選択してください）</button>
   </form>
 
   <div id="successMessage">
@@ -168,7 +172,6 @@
       });
 
       courseSelect.addEventListener('change', onCourseChange);
-      document.getElementById('selectDate').addEventListener('change', onDateChange);
 
       document.getElementById('loading').style.display = 'none';
       document.getElementById('bookingForm').style.display = 'block';
@@ -176,11 +179,9 @@
 
     function onCourseChange() {
       const selectedCourse = document.getElementById('selectCourseName').value;
-      const dateSelect = document.getElementById('selectDate');
-
-      dateSelect.innerHTML = '<option value="">日付を選択してください</option>';
-      dateSelect.disabled = true;
-      resetScheduleList('コースと日付を選択してください');
+      
+      resetDateList('コースを選択してください');
+      resetScheduleList('日付を選択してください');
 
       if (!selectedCourse) return;
 
@@ -191,37 +192,60 @@
         dateAggregates[item.date] = (dateAggregates[item.date] || 0) + item.remains;
       });
 
-      // 【修正】日付の選択肢も「〇月〇日(〇) 〇 空き5」のような見え方に統一
-      Object.keys(dateAggregates).forEach(dateStr => {
-        const totalRemains = dateAggregates[dateStr];
-        const opt = document.createElement('option');
-        opt.value = dateStr;
-
-        if (totalRemains <= 0) {
-          opt.textContent = `${dateStr} × 満席`;
-        } else if (totalRemains <= 2) {
-          opt.textContent = `${dateStr} △ 残り${totalRemains}`;
-        } else {
-          opt.textContent = `${dateStr} 〇 空き${totalRemains}`;
-        }
-
-        dateSelect.appendChild(opt);
-      });
-
-      dateSelect.disabled = false;
+      renderScheduleDates(dateAggregates);
     }
 
-    function onDateChange() {
-      const selectedCourse = document.getElementById('selectCourseName').value;
-      const selectedDate = document.getElementById('selectDate').value;
+    function renderScheduleDates(dateAggregates) {
+      const dateListEl = document.getElementById('dateList');
+      dateListEl.innerHTML = '';
 
-      if (!selectedCourse || !selectedDate) {
-        resetScheduleList('コースと日付を選択してください');
+      const dates = Object.keys(dateAggregates);
+      if (dates.length === 0) {
+        dateListEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #888;">該当する日程がありません</div>';
         return;
       }
 
-      const targetItems = rawSchedulesData.filter(i => i.course === selectedCourse && i.date === selectedDate);
-      renderScheduleTimes(targetItems);
+      dates.forEach(dateStr => {
+        const totalRemains = dateAggregates[dateStr];
+        const card = document.createElement('div');
+        card.className = 'schedule-card';
+
+        let badgeClass = 'status-maru';
+        let statusText = `〇 空き${totalRemains}`;
+        if (totalRemains <= 0) {
+          badgeClass = 'status-batsu';
+          statusText = '× 満席';
+          card.classList.add('disabled');
+        } else if (totalRemains <= 2) {
+          badgeClass = 'status-sankaku';
+          statusText = `△ 残り${totalRemains}`;
+        }
+
+        card.innerHTML = `
+          <div class="schedule-info">
+            <div class="course-title">${dateStr}</div>
+          </div>
+          <div class="status-badge ${badgeClass}">${statusText}</div>
+        `;
+
+        card.addEventListener('click', () => {
+          document.querySelectorAll('#dateList .schedule-card').forEach(c => c.classList.remove('selected'));
+          card.classList.add('selected');
+          document.getElementById('selectDate').value = dateStr;
+
+          const selectedCourse = document.getElementById('selectCourseName').value;
+          const targetItems = rawSchedulesData.filter(i => i.course === selectedCourse && i.date === dateStr);
+          renderScheduleTimes(targetItems);
+        });
+
+        dateListEl.appendChild(card);
+      });
+    }
+
+    function resetDateList(message) {
+      const dateListEl = document.getElementById('dateList');
+      dateListEl.innerHTML = `<div style="padding: 20px; text-align: center; color: #888;">${message}</div>`;
+      document.getElementById('selectDate').value = '';
     }
 
     function resetScheduleList(message) {
@@ -231,7 +255,7 @@
 
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
-      submitBtn.textContent = '予約を確定する（時間を選択してください）';
+      submitBtn.textContent = '予約を確定する（日時を選択してください）';
     }
 
     function renderScheduleTimes(items) {
@@ -264,7 +288,7 @@
 
         if (item.remains > 0) {
           card.addEventListener('click', () => {
-            document.querySelectorAll('.schedule-card').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('#scheduleList .schedule-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
             document.getElementById('schedule').value = item.key;
 
@@ -328,9 +352,9 @@
       document.getElementById('childName').value = '';
       document.getElementById('grade').value = '';
       document.getElementById('selectCourseName').value = '';
-      document.getElementById('selectDate').innerHTML = '<option value="">先にコースを選択してください</option>';
-      document.getElementById('selectDate').disabled = true;
-      resetScheduleList('コースと日付を選択してください');
+      
+      resetDateList('コースを選択してください');
+      resetScheduleList('日付を選択してください');
 
       document.getElementById('successMessage').style.display = 'none';
       document.getElementById('loading').style.display = 'block';
