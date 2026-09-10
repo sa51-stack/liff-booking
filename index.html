@@ -114,7 +114,7 @@
     <h3>ご予約完了いたしました！</h3>
     <p>ご登録のLINEに確認メッセージを送信しました。<br>LINEの自動返信をご確認ください。</p>
     <button type="button" onclick="resetFormForNext()">続けて別のお子様の予約をする</button>
-    <button type="button" class="btn-secondary" onclick="handleCloseAction()">予約を終了して画面を閉じる</button>
+    <button type="button" class="btn-secondary" onclick="handleCloseAction()">予約を終了する</button>
   </div>
 
   <script>
@@ -400,7 +400,7 @@
       if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
         liff.closeWindow();
       } else {
-        alert('予約が完了しました。このブラウザタブを閉じてLINEにお戻りください。');
+        alert('予約が完了しました。ブラウザを閉じてLINEにお戻りください。');
       }
     }
   </script>
